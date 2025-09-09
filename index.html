@@ -1,0 +1,551 @@
+
+<!DOCTYPE html>
+<html lang="en" class="scroll-smooth">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LinkedIn Portfolio PDF Builder</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.2/papaparse.min.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Lato:wght@400;700&family=Merriweather:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            background-color: #f8fafc;
+        }
+        /* Template Fonts */
+        .template-modern { font-family: 'Lato', sans-serif; }
+        .template-classic { font-family: 'Merriweather', serif; }
+        .template-creative { font-family: 'Lato', sans-serif; }
+
+        /* Modern Template */
+        .template-modern h1, .template-modern h2 { color: #2563eb; }
+        .template-modern .section-title { border-bottom: 2px solid #dbeafe; }
+        
+        /* Classic Template */
+        .template-classic { color: #1f2937; }
+        .template-classic h1 { font-weight: 700; letter-spacing: 1px; }
+        .template-classic h2 { font-weight: 700; font-size: 1.125rem; }
+        .template-classic .section-title { border-bottom: 1px solid #374151; }
+        
+        /* Creative Template */
+        .template-creative .creative-grid { display: grid; grid-template-columns: 1fr 2.5fr; gap: 2rem; }
+        .template-creative .sidebar { background-color: #1e3a8a; color: #ffffff; padding: 1.5rem; }
+        .template-creative .sidebar a { color: #93c5fd; }
+        .template-creative .sidebar .section-title { border-bottom: 1px solid #3b82f6; }
+        .template-creative .main-content { padding-top: 1.5rem; }
+
+        /* General Styles */
+        .drag-over { border-color: #2563eb; background-color: #eff6ff; }
+        #loader { display: none; }
+        .style-thumbnail { cursor: pointer; border: 2px solid transparent; transition: border-color 0.2s; }
+        .style-thumbnail.selected { border-color: #2563eb; }
+        @media print {
+            body * { visibility: hidden; }
+            #portfolio-preview-wrapper, #portfolio-preview-wrapper * { visibility: visible; }
+            #portfolio-preview-wrapper { position: absolute; left: 0; top: 0; width: 100%; }
+        }
+    </style>
+</head>
+<body class="text-gray-800">
+
+    <main class="container mx-auto p-4 md:p-8">
+        <header class="text-center mb-8">
+            <h1 class="text-4xl font-bold text-gray-900">Portfolio PDF Builder</h1>
+            <p class="text-lg text-gray-600 mt-2">Import your LinkedIn data, choose a style, and generate a professional PDF portfolio in seconds.</p>
+        </header>
+
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+            <!-- Left Column: Controls -->
+            <div class="bg-white p-6 rounded-lg shadow-lg">
+                <div class="space-y-8">
+                    <!-- Step 1: Import -->
+                    <div>
+                        <h2 class="text-2xl font-bold mb-3 text-blue-700">Step 1: Import LinkedIn Data</h2>
+                        <div class="text-sm text-gray-600 mb-4 space-y-1">
+                            <p><strong>How to get your data:</strong></p>
+                            <ol class="list-decimal list-inside">
+                                <li>Go to LinkedIn > Me > Settings & Privacy > Data Privacy.</li>
+                                <li>Click "Get a copy of your data".</li>
+                                <li>Select "Want something in particular?" and choose at least Profile, Positions, Education, and Skills.</li>
+                                <li>Download the archive and unzip it.</li>
+                            </ol>
+                        </div>
+                        <div id="drop-zone" class="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center cursor-pointer hover:border-blue-500 transition-colors">
+                            <p class="text-gray-500">Drag & drop your CSV files here</p>
+                            <p class="text-xs text-gray-400 mt-1">(Profile.csv, Positions.csv, Education.csv, Skills.csv)</p>
+                        </div>
+                        <ul id="file-list" class="mt-3 text-sm text-gray-700"></ul>
+                    </div>
+
+                    <!-- Step 2: Style -->
+                    <div>
+                        <h2 class="text-2xl font-bold mb-3 text-blue-700">Step 2: Choose a Style</h2>
+                        <div id="style-selector" class="grid grid-cols-3 gap-4">
+                            <div class="style-thumbnail rounded-lg overflow-hidden border-2 border-blue-600 selected" data-style="modern">
+                                <img src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyOCA0MCI+PHJlY3Qgd2lkdGg9IjI4IiBoZWlnaHQ9IjQwIiBmaWxsPSIjZjNmM2YzIi8+PHJlY3QgeD0iMyIgeT0iMyIgd2lkdGg9IjIyIiBoZWlnaHQ9IjUiIGZpbGw9IiM2MDk5NjQiLz48cmVjdCB4PSIzIiB5PSIxMCIgd2lkdGg9IjE4IiBoZWlnaHQ9IjIiIGZpbGw9IiNjY2NjY2MiLz48cmVjdCB4PSIzIiB5PSIxNCIgd2lkdGg9IjIyIiBoZWlnaHQ9IjEiIGZpbGw9IiNlNWU1ZTUiLz48cmVjdCB4PSIzIiB5PSIxNiIgd2lkdGg9IjIyIiBoZWlnaHQ9IjEiIGZpbGw9IiNlNWU1ZTUiLz48cmVjdCB4PSIzIiB5PSIxOCIgd2lkdGg9IjE2IiBoZWlnaHQ9IjEiIGZpbGw9IiNlNWU1ZTUiLz48cmVjdCB4PSIzIiB5PSIyMiIgd2lkdGg9IjE4IiBoZWlnaHQ9IjIiIGZpbGw9IiNjY2NjY2MiLz48cmVjdCB4PSIzIiB5PSIyNiIgd2lkdGg9IjIyIiBoZWlnaHQ9IjEiIGZpbGw9IiNlNWU1ZTUiLz48cmVjdCB4PSIzIiB5PSIyOCIgd2lkdGg9IjE2IiBoZWlnaHQ9IjEiIGZpbGw9IiNlNWU1ZTUiLz48L3N2Zz4=" alt="Modern Template Thumbnail" class="w-full h-auto bg-gray-200">
+                                <p class="text-center font-semibold p-1 text-sm">Modern</p>
+                            </div>
+                            <div class="style-thumbnail rounded-lg overflow-hidden" data-style="classic">
+                                <img src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyOCA0MCI+PHJlY3Qgd2lkdGg9IjI4IiBoZWlnaHQ9IjQwIiBmaWxsPSIjZjNmM2YzIi8+PHJlY3QgeD0iMyIgeT0iMyIgd2lkdGg9IjIyIiBoZWlnaHQ9IjUiIGZpbGw9IiMzMzMzMzMiLz48cmVjdCB4PSIzIiB5PSIxMCIgd2lkdGg9IjIyIiBoZWlnaHQ9IjIiIGZpbGw9IiM5OTk5OTkiLz48cmVjdCB4PSIzIiB5PSIxNCIgd2lkdGg9IjIyIiBoZWlnaHQ9IjAuNSIgZmlsbD0iIzMzMzMzMyIvPjxyZWN0IHg9IjMiIHk9IjE2IiB3aWR0aD0iMjIiIGhlaWdodD0iMC41IiBmaWxsPSIjY2NjY2NjIi8+PHJlY3QgeD0iMyIgeT0iMTgiIHdpZHRoPSIxOCIgaGVpZ2h0PSIwLjUiIGZpbGw9IiNjY2NjY2MiLz48cmVjdCB4PSIzIiB5PSIyMiIgd2lkdGg9IjIyIiBoZWlnaHQ9IjIiIGZpbGw9IiM5OTk5OTkiLz48cmVjdCB4PSIzIiB5PSIyNiIgd2lkdGg9IjIyIiBoZWlnaHQ9IjAuNSIgZmlsbD0iI2NjY2NjYyIvPjxyZWN0IHg9IjMiIHk9IjI4IiB3aWR0aD0iMTgiIGhlaWdodD0iMC41IiBmaWxsPSIjY2NjY2NjIi8+PC9zdmc+" alt="Classic Template Thumbnail" class="w-full h-auto bg-gray-200">
+                                <p class="text-center font-semibold p-1 text-sm">Classic</p>
+                            </div>
+                            <div class="style-thumbnail rounded-lg overflow-hidden" data-style="creative">
+                                <img src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyOCA0MCI+PHJlY3Qgd2lkdGg9IjI4IiBoZWlnaHQ9IjQwIiBmaWxsPSIjZjNmM2YzIi8+PHJlY3QgeD0iMCIgeT0iMCIgd2lkdGg9IjkiIGhlaWdodD0iNDAiIGZpbGw9IiMxZTNhOGEiLz48cmVjdCB4PSIxMSIgeT0iMyIgd2lkdGg9IjE0IiBoZWlnaHQ9IjUiIGZpbGw9IiM2MDk5NjQiLz48cmVjdCB4PSIxMSIgeT0iMTAiIHdpZHRoPSIxMiIgaGVpZ2h0PSIyIiBmaWxsPSIjY2NjY2NjIi8+PHJlY3QgeD0iMTEiIHk9IjE0IiB3aWR0aD0iMTQiIGhlaWdodD0iMSIgZmlsbD0iI2U1ZTJlNSIvPjxyZWN0IHg9IjExIiB5PSIxNiIgd2lkdGg9IjE0IiBoZWlnaHQ9IjEiIGZpbGw9IiNlNWU1ZTUiLz48cmVjdCB4PSIxMSIgeT0iMjIiIHdpZHRoPSIxMiIgaGVpZ2h0PSIyIiBmaWxsPSIjY2NjY2NjIi8+PHJlY3QgeD0iMyIgeT0iNCIgd2lkdGg9IjQiIGhlaWdodD0iMSIgZmlsbD0iI2ZmZmZmZiIvPjxyZWN0IHg9IjMiIHk9IjciIHdpZHRoPSI0IiBoZWlnaHQ9IjEiIGZpbGw9IiNmZmZmZmYiLz48L3N2Zz4=" alt="Creative Template Thumbnail" class="w-full h-auto bg-gray-200">
+                                <p class="text-center font-semibold p-1 text-sm">Creative</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Step 3: Edit -->
+                    <div>
+                        <h2 class="text-2xl font-bold mb-3 text-blue-700">Step 3: Edit Content</h2>
+                        <form id="portfolio-form" class="space-y-6">
+                            <!-- Personal Info -->
+                            <fieldset class="space-y-2">
+                                <legend class="font-semibold text-lg">Personal Info</legend>
+                                <input type="text" id="name" placeholder="Your Name" class="w-full p-2 border border-gray-300 rounded">
+                                <input type="text" id="headline" placeholder="Your Headline / Title" class="w-full p-2 border border-gray-300 rounded">
+                                <input type="email" id="email" placeholder="Email" class="w-full p-2 border border-gray-300 rounded">
+                                <input type="tel" id="phone" placeholder="Phone" class="w-full p-2 border border-gray-300 rounded">
+                                <input type="url" id="website" placeholder="Website / Portfolio URL" class="w-full p-2 border border-gray-300 rounded">
+                                <input type="text" id="geoLocation" placeholder="Geo Location (e.g. Denver, CO)" class="w-full p-2 border border-gray-300 rounded">
+                                <input type="text" id="address" placeholder="Full Address" class="w-full p-2 border border-gray-300 rounded">
+                                <input type="text" id="twitter" placeholder="Twitter Handle (e.g. @username)" class="w-full p-2 border border-gray-300 rounded">
+                                <input type="text" id="instantMessengers" placeholder="Instant Messenger (e.g. Skype: username)" class="w-full p-2 border border-gray-300 rounded">
+                            </fieldset>
+                            
+                            <!-- Summary -->
+                            <fieldset>
+                                <label for="summary" class="font-semibold text-lg">Summary</label>
+                                <textarea id="summary" placeholder="A brief professional summary..." class="w-full p-2 border border-gray-300 rounded mt-2" rows="5"></textarea>
+                            </fieldset>
+
+                            <!-- Experience -->
+                            <fieldset>
+                                <div class="flex justify-between items-center">
+                                    <legend class="font-semibold text-lg">Experience</legend>
+                                    <button type="button" id="add-experience" class="text-sm bg-blue-500 text-white px-3 py-1 rounded hover:bg-blue-600">+</button>
+                                </div>
+                                <div id="experience-entries" class="space-y-4 mt-2"></div>
+                            </fieldset>
+
+                             <!-- Education -->
+                             <fieldset>
+                                <div class="flex justify-between items-center">
+                                    <legend class="font-semibold text-lg">Education</legend>
+                                    <button type="button" id="add-education" class="text-sm bg-blue-500 text-white px-3 py-1 rounded hover:bg-blue-600">+</button>
+                                </div>
+                                <div id="education-entries" class="space-y-4 mt-2"></div>
+                            </fieldset>
+
+                            <!-- Skills -->
+                            <fieldset>
+                                <label for="skills" class="font-semibold text-lg">Skills</label>
+                                <textarea id="skills" placeholder="Comma-separated skills, e.g., JavaScript, React, Node.js" class="w-full p-2 border border-gray-300 rounded mt-2" rows="3"></textarea>
+                            </fieldset>
+                        </form>
+                    </div>
+
+                    <!-- Step 4: Download -->
+                    <div>
+                        <h2 class="text-2xl font-bold mb-3 text-blue-700">Step 4: Download PDF</h2>
+                        <button id="download-btn" class="w-full bg-green-600 text-white font-bold py-3 px-4 rounded-lg hover:bg-green-700 transition-colors flex items-center justify-center">
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-5 h-5 mr-2">
+                                <path d="M10.75 2.75a.75.75 0 0 0-1.5 0v8.614L6.295 8.235a.75.75 0 1 0-1.09 1.03l4.25 4.5a.75.75 0 0 0 1.09 0l4.25-4.5a.75.75 0 0 0-1.09-1.03l-2.955 3.129V2.75Z" />
+                                <path d="M3.5 12.75a.75.75 0 0 0-1.5 0v2.5A2.75 2.75 0 0 0 4.75 18h10.5A2.75 2.75 0 0 0 18 15.25v-2.5a.75.75 0 0 0-1.5 0v2.5c0 .69-.56 1.25-1.25 1.25H4.75c-.69 0-1.25-.56-1.25-1.25v-2.5Z" />
+                            </svg>
+                            Download PDF
+                        </button>
+                        <div id="loader" class="mt-4 text-center">
+                            <svg class="animate-spin h-5 w-5 text-blue-600 mx-auto" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                            </svg>
+                            <p class="text-sm text-gray-500 mt-2">Generating your PDF...</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Right Column: Preview -->
+            <div id="portfolio-preview-wrapper" class="bg-gray-100 p-2 rounded-lg">
+                <div id="portfolio-preview" class="bg-white shadow-lg p-8 md:p-12 w-full h-full overflow-auto template-modern">
+                    <!-- This content is dynamically generated by JavaScript -->
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const { jsPDF } = window.jspdf;
+
+            // --- STATE MANAGEMENT ---
+            let portfolioData = {
+                name: "Your Name",
+                headline: "Professional Headline",
+                email: "your.email@example.com",
+                phone: "(555) 123-4567",
+                website: "yourportfolio.com",
+                address: "123 Main St, Anytown, USA",
+                geoLocation: "Anytown, USA",
+                twitter: "@yourhandle",
+                instantMessengers: "Skype: your.username",
+                summary: "This is a summary of your professional experience, skills, and career goals. Customize it to highlight your strengths.",
+                experience: [
+                    { title: 'Job Title', company: 'Company Name', startDate: 'Jan 2020', endDate: 'Present', description: 'Describe your role and accomplishments here.' }
+                ],
+                education: [
+                    { school: 'University Name', degree: 'Degree, Field of Study', startDate: 'Sep 2016', endDate: 'May 2020' }
+                ],
+                skills: "Skill 1, Skill 2, Skill 3"
+            };
+
+            // --- DOM ELEMENTS ---
+            const form = document.getElementById('portfolio-form');
+            const preview = document.getElementById('portfolio-preview');
+            const downloadBtn = document.getElementById('download-btn');
+            const loader = document.getElementById('loader');
+            const dropZone = document.getElementById('drop-zone');
+            const fileListEl = document.getElementById('file-list');
+            const styleSelector = document.getElementById('style-selector');
+            
+            // --- RENDER FUNCTIONS ---
+            function renderPreview() {
+                const { name, headline, email, phone, website, address, geoLocation, twitter, instantMessengers, summary, experience, education, skills } = portfolioData;
+
+                const skillsHtml = skills.split(',').map(skill => `<span class="inline-block bg-gray-200 rounded-full px-3 py-1 text-sm font-semibold text-gray-700 mr-2 mb-2">${skill.trim()}</span>`).join('');
+                
+                const experienceHtml = experience.map(exp => `
+                    <div class="mb-4">
+                        <h3 class="text-lg font-bold">${exp.title || ''}</h3>
+                        <p class="font-semibold">${exp.company || ''}</p>
+                        <p class="text-sm text-gray-600">${exp.startDate || ''} - ${exp.endDate || ''}</p>
+                        <p class="mt-1">${(exp.description || '').replace(/\n/g, '<br>')}</p>
+                    </div>
+                `).join('');
+
+                const educationHtml = education.map(edu => `
+                    <div class="mb-3">
+                        <h3 class="text-lg font-bold">${edu.school || ''}</h3>
+                        <p class="font-semibold">${edu.degree || ''}</p>
+                        <p class="text-sm text-gray-600">${edu.startDate || ''} - ${edu.endDate || ''}</p>
+                    </div>
+                `).join('');
+
+                const ICONS = {
+                    email: `<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-1.5" viewBox="0 0 20 20" fill="currentColor"><path d="M2.003 5.884L10 9.882l7.997-3.998A2 2 0 0016 4H4a2 2 0 00-1.997 1.884z" /><path d="M18 8.118l-8 4-8-4V14a2 2 0 002 2h12a2 2 0 002-2V8.118z" /></svg>`,
+                    phone: `<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-1.5" viewBox="0 0 20 20" fill="currentColor"><path d="M2 3a1 1 0 011-1h2.153a1 1 0 01.986.836l.74 4.435a1 1 0 01-.54 1.06l-1.548.773a11.037 11.037 0 006.105 6.105l.774-1.548a1 1 0 011.059-.54l4.435.74a1 1 0 01.836.986V17a1 1 0 01-1 1h-2C7.82 18 2 12.18 2 5V3z" /></svg>`,
+                    website: `<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-1.5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M12.586 4.586a2 2 0 112.828 2.828l-3 3a2 2 0 01-2.828 0 1 1 0 00-1.414 1.414 4 4 0 005.656 0l3-3a4 4 0 00-5.656-5.656l-1.5 1.5a1 1 0 101.414 1.414l1.5-1.5zm-5 5a2 2 0 012.828 0 1 1 0 101.414-1.414 4 4 0 00-5.656 0l-3 3a4 4 0 105.656 5.656l1.5-1.5a1 1 0 10-1.414-1.414l-1.5 1.5a2 2 0 11-2.828-2.828l3-3z" clip-rule="evenodd" /></svg>`,
+                    location: `<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-1.5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M5.05 4.05a7 7 0 119.9 9.9L10 18.9l-4.95-4.95a7 7 0 010-9.9zM10 11a2 2 0 100-4 2 2 0 000 4z" clip-rule="evenodd" /></svg>`,
+                    twitter: `<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-1.5" fill="currentColor" viewBox="0 0 24 24"><path d="M24 4.557c-.883.392-1.832.656-2.828.775 1.017-.609 1.798-1.574 2.165-2.724-.951.564-2.005.974-3.127 1.195-.897-.957-2.178-1.555-3.594-1.555-3.179 0-5.515 2.966-4.797 6.045-4.091-.205-7.719-2.165-10.148-5.144-1.29 2.213-.669 5.108 1.523 6.574-.806-.026-1.566-.247-2.229-.616v.064c0 2.298 1.634 4.212 3.793 4.649-.65.177-1.339.223-2.034.182.604 1.959 2.343 3.379 4.423 3.419-2.126 1.666-4.797 2.585-7.59 2.235 2.229 1.446 4.882 2.295 7.732 2.295 9.281 0 14.363-7.693 14.363-14.363 0-.218-.005-.436-.015-.652.984-.71 1.832-1.597 2.516-2.6z"/></svg>`,
+                    im: `<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-1.5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M18 5v8a2 2 0 01-2 2h-5l-5 4v-4H4a2 2 0 01-2-2V5a2 2 0 012-2h12a2 2 0 012 2zM7 8H5v2h2V8zm2 0h2v2H9V8zm6 0h-2v2h2V8z" clip-rule="evenodd" /></svg>`
+                };
+
+                const creativeSidebar = `
+                    <div class="sidebar">
+                         <div class="text-center">
+                            <h1 class="text-3xl font-bold">${name}</h1>
+                            <p class="text-xl">${headline}</p>
+                        </div>
+                        <div class="mt-8 space-y-4">
+                            <div>
+                                <h2 class="text-xl font-bold mb-2 section-title pb-1">Contact</h2>
+                                <div class="space-y-2 text-sm">
+                                    ${email ? `<p class="flex items-center">${ICONS.email} <a href="mailto:${email}">${email}</a></p>` : ''}
+                                    ${phone ? `<p class="flex items-center">${ICONS.phone} ${phone}</p>` : ''}
+                                    ${website ? `<p class="flex items-center">${ICONS.website} <a href="${website}" target="_blank" class="truncate">${website}</a></p>` : ''}
+                                    ${geoLocation ? `<p class="flex items-center">${ICONS.location} ${geoLocation}</p>` : ''}
+                                    ${address ? `<p class="pl-6 text-xs">${address}</p>` : ''}
+                                    ${twitter ? `<p class="flex items-center">${ICONS.twitter} ${twitter}</p>` : ''}
+                                    ${instantMessengers ? `<p class="flex items-center">${ICONS.im} ${instantMessengers}</p>` : ''}
+                                </div>
+                            </div>
+                            <div>
+                                <h2 class="text-xl font-bold mb-2 section-title pb-1">Skills</h2>
+                                <div class="flex flex-wrap">
+                                    ${skills.split(',').map(skill => `<span class="inline-block bg-blue-200 text-blue-800 rounded-full px-3 py-1 text-sm font-semibold mr-2 mb-2">${skill.trim()}</span>`).join('')}
+                                </div>
+                            </div>
+                        </div>
+                    </div>`;
+
+                const mainContent = `
+                    <div>
+                        <h2 class="text-2xl font-bold mb-2 section-title pb-1">Summary</h2>
+                        <p>${summary}</p>
+                    </div>
+                    <div class="mt-6">
+                        <h2 class="text-2xl font-bold mb-2 section-title pb-1">Experience</h2>
+                        ${experienceHtml}
+                    </div>
+                    <div class="mt-6">
+                        <h2 class="text-2xl font-bold mb-2 section-title pb-1">Education</h2>
+                        ${educationHtml}
+                    </div>`;
+                
+                let finalHtml;
+                if (preview.classList.contains('template-creative')) {
+                    finalHtml = `<div class="creative-grid">${creativeSidebar}<div class="main-content space-y-6">${mainContent}</div></div>`;
+                } else {
+                     const contactInfoHtml = `
+                        <div class="flex flex-wrap justify-center items-center gap-x-4 gap-y-2 mt-4 text-sm text-gray-700">
+                            ${email ? `<span class="flex items-center">${ICONS.email} <a href="mailto:${email}" class="hover:underline">${email}</a></span>` : ''}
+                            ${phone ? `<span class="flex items-center">${ICONS.phone} ${phone}</span>` : ''}
+                            ${website ? `<span class="flex items-center">${ICONS.website} <a href="${website}" target="_blank" class="hover:underline">${website}</a></span>` : ''}
+                            ${geoLocation ? `<span class="flex items-center">${ICONS.location} ${geoLocation}</span>` : ''}
+                            ${twitter ? `<span class="flex items-center">${ICONS.twitter} ${twitter}</span>` : ''}
+                            ${instantMessengers ? `<span class="flex items-center">${ICONS.im} ${instantMessengers}</span>` : ''}
+                        </div>`;
+
+                    finalHtml = `
+                        <div class="text-center mb-8">
+                            <h1 class="text-4xl font-bold">${name}</h1>
+                            <p class="text-xl">${headline}</p>
+                            ${contactInfoHtml}
+                        </div>
+                        ${mainContent}
+                        <div class="mt-6">
+                            <h2 class="text-2xl font-bold mb-2 section-title pb-1">Skills</h2>
+                            <div class="flex flex-wrap">${skillsHtml}</div>
+                        </div>`;
+                }
+                
+                preview.innerHTML = finalHtml;
+            }
+
+            function renderForm() {
+                document.getElementById('name').value = portfolioData.name;
+                document.getElementById('headline').value = portfolioData.headline;
+                document.getElementById('email').value = portfolioData.email;
+                document.getElementById('phone').value = portfolioData.phone;
+                document.getElementById('website').value = portfolioData.website;
+                document.getElementById('address').value = portfolioData.address;
+                document.getElementById('geoLocation').value = portfolioData.geoLocation;
+                document.getElementById('twitter').value = portfolioData.twitter;
+                document.getElementById('instantMessengers').value = portfolioData.instantMessengers;
+                document.getElementById('summary').value = portfolioData.summary;
+                document.getElementById('skills').value = portfolioData.skills;
+
+                const experienceContainer = document.getElementById('experience-entries');
+                experienceContainer.innerHTML = portfolioData.experience.map((exp, index) => `
+                    <div class="border p-3 rounded-md bg-gray-50 relative">
+                        <input type="text" data-index="${index}" data-field="title" value="${exp.title}" placeholder="Job Title" class="w-full p-2 border border-gray-300 rounded mb-2">
+                        <input type="text" data-index="${index}" data-field="company" value="${exp.company}" placeholder="Company" class="w-full p-2 border border-gray-300 rounded mb-2">
+                        <div class="grid grid-cols-2 gap-2 mb-2">
+                            <input type="text" data-index="${index}" data-field="startDate" value="${exp.startDate}" placeholder="Start Date" class="w-full p-2 border border-gray-300 rounded">
+                            <input type="text" data-index="${index}" data-field="endDate" value="${exp.endDate}" placeholder="End Date" class="w-full p-2 border border-gray-300 rounded">
+                        </div>
+                        <textarea data-index="${index}" data-field="description" placeholder="Description" class="w-full p-2 border border-gray-300 rounded" rows="4">${exp.description}</textarea>
+                        <button type="button" class="remove-experience absolute top-2 right-2 text-red-500 hover:text-red-700" data-index="${index}">✖</button>
+                    </div>
+                `).join('');
+
+                const educationContainer = document.getElementById('education-entries');
+                educationContainer.innerHTML = portfolioData.education.map((edu, index) => `
+                    <div class="border p-3 rounded-md bg-gray-50 relative">
+                        <input type="text" data-index="${index}" data-field="school" value="${edu.school}" placeholder="School/University" class="w-full p-2 border border-gray-300 rounded mb-2">
+                        <input type="text" data-index="${index}" data-field="degree" value="${edu.degree}" placeholder="Degree" class="w-full p-2 border border-gray-300 rounded mb-2">
+                         <div class="grid grid-cols-2 gap-2">
+                            <input type="text" data-index="${index}" data-field="startDate" value="${edu.startDate}" placeholder="Start Date" class="w-full p-2 border border-gray-300 rounded">
+                            <input type="text" data-index="${index}" data-field="endDate" value="${edu.endDate}" placeholder="End Date" class="w-full p-2 border border-gray-300 rounded">
+                        </div>
+                        <button type="button" class="remove-education absolute top-2 right-2 text-red-500 hover:text-red-700" data-index="${index}">✖</button>
+                    </div>
+                `).join('');
+            }
+
+            // --- EVENT LISTENERS ---
+            form.addEventListener('input', (e) => {
+                const { id, value, dataset } = e.target;
+                if (dataset.index && dataset.field) { // Handle dynamic fields (experience, education)
+                    const { index, field } = dataset;
+                    const section = e.target.closest('[id$="-entries"]').id.replace('-entries', '');
+                    if (portfolioData[section] && portfolioData[section][index]) {
+                        portfolioData[section][index][field] = value;
+                    }
+                } else if (id && portfolioData.hasOwnProperty(id)) {
+                    portfolioData[id] = value;
+                }
+                renderPreview();
+            });
+
+            // Add/Remove Experience & Education
+            document.addEventListener('click', (e) => {
+                if (e.target.id === 'add-experience') {
+                    portfolioData.experience.push({ title: '', company: '', startDate: '', endDate: '', description: '' });
+                    renderForm();
+                }
+                if (e.target.classList.contains('remove-experience')) {
+                    portfolioData.experience.splice(e.target.dataset.index, 1);
+                    renderForm();
+                    renderPreview();
+                }
+                if (e.target.id === 'add-education') {
+                    portfolioData.education.push({ school: '', degree: '', startDate: '', endDate: '' });
+                    renderForm();
+                }
+                if (e.target.classList.contains('remove-education')) {
+                    portfolioData.education.splice(e.target.dataset.index, 1);
+                    renderForm();
+                    renderPreview();
+                }
+            });
+
+
+            // Style Selector
+            styleSelector.addEventListener('click', (e) => {
+                const thumbnail = e.target.closest('.style-thumbnail');
+                if (thumbnail) {
+                    // Update selection visual
+                    document.querySelectorAll('.style-thumbnail').forEach(t => t.classList.remove('selected', 'border-blue-600'));
+                    thumbnail.classList.add('selected', 'border-blue-600');
+                    // Apply class to preview
+                    const style = thumbnail.dataset.style;
+                    preview.className = `bg-white shadow-lg p-8 md:p-12 w-full h-full overflow-auto template-${style}`;
+                    renderPreview();
+                }
+            });
+
+            // PDF Download
+            downloadBtn.addEventListener('click', () => {
+                loader.style.display = 'block';
+                downloadBtn.disabled = true;
+
+                html2canvas(preview, {
+                    scale: 2, // Higher scale for better quality
+                    useCORS: true
+                }).then(canvas => {
+                    const imgData = canvas.toDataURL('image/png');
+                    const pdf = new jsPDF({
+                        orientation: 'portrait',
+                        unit: 'pt',
+                        format: 'a4'
+                    });
+
+                    const pdfWidth = pdf.internal.pageSize.getWidth();
+                    const pdfHeight = pdf.internal.pageSize.getHeight();
+                    const canvasWidth = canvas.width;
+                    const canvasHeight = canvas.height;
+                    const ratio = canvasHeight / canvasWidth;
+                    const newCanvasHeight = pdfWidth * ratio;
+
+                    pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, newCanvasHeight > pdfHeight ? pdfHeight : newCanvasHeight);
+                    pdf.save('portfolio.pdf');
+
+                }).catch(err => {
+                    console.error("Error generating PDF:", err);
+                    alert("An error occurred while generating the PDF. Please check the console for details.");
+                }).finally(() => {
+                    loader.style.display = 'none';
+                    downloadBtn.disabled = false;
+                });
+            });
+
+            // Drag and Drop
+            ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+                dropZone.addEventListener(eventName, (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                }, false);
+            });
+
+            ['dragenter', 'dragover'].forEach(eventName => {
+                dropZone.addEventListener(eventName, () => dropZone.classList.add('drag-over'), false);
+            });
+
+            ['dragleave', 'drop'].forEach(eventName => {
+                dropZone.addEventListener(eventName, () => dropZone.classList.remove('drag-over'), false);
+            });
+
+            dropZone.addEventListener('drop', (e) => {
+                const files = e.dataTransfer.files;
+                handleFiles(files);
+            }, false);
+
+            function handleFiles(files) {
+                fileListEl.innerHTML = '';
+                for (const file of files) {
+                    const li = document.createElement('li');
+                    li.textContent = `Processing ${file.name}...`;
+                    fileListEl.appendChild(li);
+
+                    Papa.parse(file, {
+                        header: true,
+                        skipEmptyLines: true,
+                        complete: (results) => {
+                            processCSV(file.name, results.data);
+                            li.textContent = `✓ Successfully loaded ${file.name}`;
+                        },
+                        error: (err) => {
+                             li.textContent = `✗ Error parsing ${file.name}: ${err.message}`;
+                             li.style.color = 'red';
+                        }
+                    });
+                }
+            }
+
+            function processCSV(fileName, data) {
+                if (fileName.includes('Profile.csv') && data.length > 0) {
+                    const profile = data[0];
+                    portfolioData.name = `${profile['First Name'] || ''} ${profile['Last Name'] || ''}`.trim();
+                    portfolioData.headline = profile['Headline'] || '';
+                    portfolioData.summary = profile['Summary'] || '';
+                    portfolioData.address = profile['Address'] || '';
+                    portfolioData.geoLocation = profile['Geo Location'] || '';
+
+                    const websiteRaw = profile['Websites'];
+                    if (websiteRaw && websiteRaw.includes(':http')) {
+                        portfolioData.website = websiteRaw.substring(websiteRaw.indexOf('http'), websiteRaw.length - 1);
+                    } else if (websiteRaw) {
+                        portfolioData.website = websiteRaw.replace(/[\[\]]/g, '');
+                    }
+
+                    const twitterRaw = profile['Twitter Handles'];
+                    if (twitterRaw && twitterRaw.length > 2) {
+                        const handle = twitterRaw.substring(1, twitterRaw.length - 1);
+                        portfolioData.twitter = handle.startsWith('@') ? handle : `@${handle}`;
+                    }
+                    
+                    const imRaw = profile['Instant Messengers'];
+                    if (imRaw && imRaw.includes(':')) {
+                        portfolioData.instantMessengers = imRaw.substring(1, imRaw.length - 1).replace(':', ': ');
+                    } else if (imRaw && imRaw.length > 2) {
+                        portfolioData.instantMessengers = imRaw.substring(1, imRaw.length - 1);
+                    }
+                }
+                if (fileName.includes('Positions.csv') && data.length > 0) {
+                    portfolioData.experience = data.map(pos => ({
+                        title: pos['Title'],
+                        company: pos['Company Name'],
+                        startDate: `${pos['Started On Month'] ? ` ${pos['Started On Month']}` : ''} ${pos['Started On Year']}`,
+                        endDate: (pos['Finished On Year'] ? `${pos['Finished On Month'] ? ` ${pos['Finished On Month']}` : ''} ${pos['Finished On Year']}` : 'Present').trim(),
+                        description: pos['Description']
+                    })).filter(pos => pos.company); // Filter out entries without a company name
+                }
+                if (fileName.includes('Education.csv') && data.length > 0) {
+                    portfolioData.education = data.map(edu => ({
+                        school: edu['School Name'],
+                        degree: edu['Degree Name'],
+                        startDate: edu['Start Date'],
+                        endDate: edu['End Date']
+                    })).filter(edu => edu.school);
+                }
+                if (fileName.includes('Skills.csv') && data.length > 0) {
+                    portfolioData.skills = data.map(skill => skill['Name']).join(', ');
+                }
+                renderForm();
+                renderPreview();
+            }
+
+            // --- INITIALIZATION ---
+            renderForm();
+            renderPreview();
+        });
+    </script>
+</body>
+</html>

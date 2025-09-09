@@ -1,0 +1,5 @@
+{
+  "name": "LinkedIn Portfolio PDF Builder",
+  "description": "A client-side application to build a professional portfolio PDF by importing data from a user's LinkedIn data archive. No build process needed.",
+  "requestFramePermissions": []
+}
